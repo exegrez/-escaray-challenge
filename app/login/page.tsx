@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic'
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { getEmailByNickname } from '@/app/actions/auth'
 
 const NICKNAMES = ['Sexe', 'Conrat', 'Wizla', 'Yingo', 'Caeza']
 
@@ -21,23 +22,18 @@ export default function LoginPage() {
     setLoading(true)
     setError('')
 
-    const supabase = createClient()
+    // Buscar email por nickname en el servidor
+    const email = await getEmailByNickname(selected)
 
-    // Buscar email por nickname
-    const { data: profile, error: profileErr } = await supabase
-      .from('profiles')
-      .select('email')
-      .eq('nickname', selected)
-      .single()
-
-    if (profileErr || !profile?.email) {
+    if (!email) {
       setError('Usuario no encontrado')
       setLoading(false)
       return
     }
 
+    const supabase = createClient()
     const { error: authErr } = await supabase.auth.signInWithPassword({
-      email: profile.email,
+      email,
       password,
     })
 
