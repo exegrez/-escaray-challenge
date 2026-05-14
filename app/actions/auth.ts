@@ -2,12 +2,15 @@
 
 import { createClient } from '@/lib/supabase/server'
 
-export async function getEmailByNickname(nickname: string): Promise<string | null> {
+export async function getEmailByNickname(nickname: string): Promise<{ email: string | null; debug: string }> {
   const supabase = await createClient()
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('profiles')
     .select('email')
     .eq('nickname', nickname)
     .single()
-  return data?.email ?? null
+  return {
+    email: data?.email ?? null,
+    debug: error ? `${error.code}: ${error.message}` : (data ? 'ok' : 'no data')
+  }
 }

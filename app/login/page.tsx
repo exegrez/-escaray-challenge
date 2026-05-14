@@ -23,13 +23,14 @@ export default function LoginPage() {
     setError('')
 
     // Buscar email por nickname en el servidor
-    const email = await getEmailByNickname(selected)
+    const result = await getEmailByNickname(selected)
 
-    if (!email) {
-      setError('Usuario no encontrado')
+    if (!result.email) {
+      setError(`No encontrado (${result.debug})`)
       setLoading(false)
       return
     }
+    const email = result.email
 
     const supabase = createClient()
     const { error: authErr } = await supabase.auth.signInWithPassword({
