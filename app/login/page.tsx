@@ -31,7 +31,7 @@ export default function LoginPage() {
       .single()
 
     if (profileErr || !profile?.email) {
-      setError('Usuario no encontrado')
+      setError(`Debug: ${profileErr?.message ?? 'sin email'} | code: ${profileErr?.code ?? '-'} | hint: ${profileErr?.hint ?? '-'}`)
       setLoading(false)
       return
     }
