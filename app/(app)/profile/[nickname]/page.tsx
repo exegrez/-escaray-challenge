@@ -123,8 +123,6 @@ export default async function ProfilePage({
   const permanentBadges = badges.filter(b => b.type === 'permanent')
   const weeklyBadges = badges.filter(b => b.type === 'weekly')
 
-  const isTrialPeriod = new Date() < new Date(CHALLENGE_START)
-
   return (
     <div className="px-4 pt-6 pb-4">
       {/* Header del perfil */}
