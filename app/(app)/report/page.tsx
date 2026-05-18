@@ -1,23 +1,16 @@
 'use client'
 
-import { useState, useRef } from 'react'
+export const dynamic = 'force-dynamic'
+
+import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import Image from 'next/image'
-import { Camera, CheckCircle2, XCircle } from 'lucide-react'
+import { CheckCircle2, XCircle } from 'lucide-react'
 
 export default function ReportPage() {
   const router = useRouter()
-  const fileRef = useRef<HTMLInputElement>(null)
-
   const today = new Date().toISOString().split('T')[0]
-  const todayDay = new Date().getDay() // 1 = lunes
 
-  const [photo, setPhoto] = useState<File | null>(null)
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
-  const [isTraining, setIsTraining] = useState(false)
-  const [isMondayEscaray, setIsMondayEscaray] = useState(todayDay === 1)
-  const [trainingNotes, setTrainingNotes] = useState('')
   const [tobaccoCount, setTobaccoCount] = useState(0)
   const [hadSpirits, setHadSpirits] = useState(false)
   const [woke730, setWoke730] = useState(false)
@@ -31,20 +24,8 @@ export default function ReportPage() {
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
 
-  function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setPhoto(file)
-    setPhotoPreview(URL.createObjectURL(file))
-    setIsTraining(true)
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (isTraining && !photo) {
-      setError('Si marcas entrenamiento, necesitas adjuntar una foto.')
-      return
-    }
     setLoading(true)
     setError('')
 
@@ -52,43 +33,6 @@ export default function ReportPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setError('No autenticado'); setLoading(false); return }
 
-    let photoUrl: string | null = null
-
-    // Subir foto si hay entrenamiento
-    if (isTraining && photo) {
-      const ext = photo.name.split('.').pop()
-      const path = `${user.id}/${today}-${Date.now()}.${ext}`
-      const { error: uploadErr } = await supabase.storage
-        .from('training-photos')
-        .upload(path, photo, { upsert: false })
-
-      if (uploadErr) {
-        setError('Error subiendo foto: ' + uploadErr.message)
-        setLoading(false)
-        return
-      }
-
-      const { data: urlData } = supabase.storage.from('training-photos').getPublicUrl(path)
-      photoUrl = urlData.publicUrl
-    }
-
-    // Guardar entrenamiento
-    if (isTraining && photoUrl) {
-      const { error: trainErr } = await supabase.from('trainings').insert({
-        user_id: user.id,
-        date: today,
-        photo_url: photoUrl,
-        notes: trainingNotes || null,
-        is_monday_escaray: isMondayEscaray,
-      })
-      if (trainErr) {
-        setError('Error guardando entrenamiento: ' + trainErr.message)
-        setLoading(false)
-        return
-      }
-    }
-
-    // Guardar reporte diario (upsert por si ya existe el día)
     const { error: reportErr } = await supabase.from('daily_reports').upsert({
       user_id: user.id,
       date: today,
@@ -129,59 +73,16 @@ export default function ReportPage() {
   return (
     <div className="px-4 pt-6 pb-4">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-black text-white">Reporte del día</h1>
-        <span className="text-zinc-500 text-sm">{new Date().toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'short' })}</span>
+        <div>
+          <h1 className="text-2xl font-black text-white">Reporte del día</h1>
+          <p className="text-zinc-500 text-sm">
+            {new Date().toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'short' })}
+          </p>
+        </div>
+        <span className="text-3xl">📋</span>
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-
-        {/* Entrenamiento */}
-        <Section title="🏋️ Entrenamiento">
-          <Toggle label="¿Entrené hoy?" value={isTraining} onChange={setIsTraining} />
-
-          {isTraining && (
-            <>
-              {/* Foto */}
-              <div
-                onClick={() => fileRef.current?.click()}
-                className={`relative rounded-2xl border-2 border-dashed overflow-hidden cursor-pointer transition-colors ${
-                  photoPreview ? 'border-orange-500' : 'border-zinc-700 hover:border-zinc-500'
-                }`}
-              >
-                {photoPreview ? (
-                  <div className="relative aspect-video">
-                    <Image src={photoPreview} alt="Preview" fill className="object-cover" />
-                    <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-                      <Camera size={32} className="text-white" />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="aspect-video flex flex-col items-center justify-center gap-2 text-zinc-500">
-                    <Camera size={32} />
-                    <p className="text-sm font-medium">Subir foto del entreno</p>
-                    <p className="text-xs text-zinc-600">Obligatoria para validar</p>
-                  </div>
-                )}
-              </div>
-              <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoChange} className="hidden" />
-
-              {todayDay === 1 && (
-                <Toggle label="🏠 Fue en Escaray (lunes obligatorio)" value={isMondayEscaray} onChange={setIsMondayEscaray} accent />
-              )}
-
-              <div>
-                <label className="text-xs text-zinc-400 font-medium">Notas del entreno (opcional)</label>
-                <input
-                  type="text"
-                  value={trainingNotes}
-                  onChange={e => setTrainingNotes(e.target.value)}
-                  placeholder="Ej: Pecho + hombros, 1 hora"
-                  className="mt-1 w-full bg-[#1e1e1e] border border-zinc-700 rounded-xl px-4 py-3 text-white placeholder-zinc-600 focus:outline-none focus:border-orange-500 text-sm"
-                />
-              </div>
-            </>
-          )}
-        </Section>
 
         {/* Levantada */}
         <Section title="⏰ Levantada">
@@ -201,7 +102,7 @@ export default function ReportPage() {
         <Section title="🚬 Hábitos">
           <div>
             <label className="text-xs text-zinc-400 font-medium">Cigarros fumados hoy</label>
-            <div className="flex items-center gap-3 mt-2">
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
               {[0, 1, 2, 3, 4, 5].map(n => (
                 <button
                   key={n}
@@ -223,16 +124,11 @@ export default function ReportPage() {
               >+</button>
             </div>
             {tobaccoCount > 1 && !usedGreenCard && (
-              <p className="text-red-400 text-xs mt-1">⚠️ Superaste el límite diario (-{(tobaccoCount - 1) * 5} pts)</p>
+              <p className="text-red-400 text-xs mt-2">⚠️ Superaste el límite diario (-{(tobaccoCount - 1) * 5} pts)</p>
             )}
           </div>
 
-          <Toggle
-            label="🥃 ¿Tomé destilados?"
-            value={hadSpirits}
-            onChange={setHadSpirits}
-            danger
-          />
+          <Toggle label="🥃 ¿Tomé destilados?" value={hadSpirits} onChange={setHadSpirits} danger />
           {hadSpirits && !usedGreenCard && (
             <p className="text-red-400 text-xs -mt-2">⚠️ Penalización: -30 pts si no usas green card</p>
           )}
@@ -256,22 +152,17 @@ export default function ReportPage() {
 
         {/* Green card */}
         <Section title="🃏 Green Card">
-          <Toggle
-            label="Usar green card hoy"
-            value={usedGreenCard}
-            onChange={setUsedGreenCard}
-            accent
-          />
+          <Toggle label="Usar green card hoy" value={usedGreenCard} onChange={setUsedGreenCard} accent />
           {usedGreenCard && (
             <>
-              <p className="text-green-400 text-xs -mt-2">✓ Neutraliza penalizaciones del día</p>
+              <p className="text-green-400 text-xs -mt-2">✓ Neutraliza todas las penalizaciones del día</p>
               <div>
                 <label className="text-xs text-zinc-400 font-medium">¿Por qué la usas?</label>
                 <input
                   type="text"
                   value={greenCardReason}
                   onChange={e => setGreenCardReason(e.target.value)}
-                  placeholder="Ej: Matrimonio, carrete, cita..."
+                  placeholder="Ej: Matrimonio, carrete, viaje..."
                   className="mt-1 w-full bg-[#1e1e1e] border border-zinc-700 rounded-xl px-4 py-3 text-white placeholder-zinc-600 focus:outline-none focus:border-green-500 text-sm"
                 />
               </div>
@@ -319,11 +210,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function Toggle({
-  label,
-  value,
-  onChange,
-  danger,
-  accent,
+  label, value, onChange, danger, accent,
 }: {
   label: string
   value: boolean
@@ -346,14 +233,12 @@ function Toggle({
       }`}
     >
       <span className="text-sm font-medium text-left">{label}</span>
-      <div className={`w-11 h-6 rounded-full transition-colors relative ${
+      <div className={`w-11 h-6 rounded-full transition-colors relative shrink-0 ${
         value
           ? danger ? 'bg-red-500' : accent ? 'bg-green-500' : 'bg-orange-500'
           : 'bg-zinc-700'
       }`}>
-        <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${
-          value ? 'left-5' : 'left-0.5'
-        }`} />
+        <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${value ? 'left-5' : 'left-0.5'}`} />
       </div>
     </button>
   )
