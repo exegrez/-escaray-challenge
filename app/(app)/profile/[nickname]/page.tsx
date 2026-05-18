@@ -4,8 +4,10 @@ import { calcChallengeBonuses } from '@/lib/weekly-challenges'
 import { calcBadges } from '@/lib/badges'
 import { Training, DailyReport } from '@/lib/types'
 import Image from 'next/image'
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { Calendar, Flame, ShieldCheck, Moon, Clock, Zap } from 'lucide-react'
+import { Calendar, Flame, ShieldCheck, Moon, Clock, Zap, Swords } from 'lucide-react'
+import ScoreChart from '@/components/ScoreChart'
 
 const MAX_GREEN_CARDS = 3
 const CHALLENGE_START = '2026-06-01'
@@ -92,6 +94,30 @@ export default async function ProfilePage({
     if (weekScores[0]?.id === profile.id) patoWeeks++
   })
 
+  // Gráfico de evolución (datos del período activo)
+  const isTrialPeriod = new Date() < new Date(CHALLENGE_START)
+  const chartTrainings = isTrialPeriod
+    ? t.filter(tr => tr.date >= '2026-05-01' && tr.date <= '2026-05-31')
+    : officialTrainings
+  const chartReports = isTrialPeriod
+    ? r.filter(rep => rep.date >= '2026-05-01' && rep.date <= '2026-05-31')
+    : officialReports
+
+  const chartWeeks = Array.from(new Set([
+    ...chartTrainings.map(tr => getWeekKey(tr.date)),
+    ...chartReports.map(rep => getWeekKey(rep.date)),
+  ])).sort()
+
+  const chartData = chartWeeks.map((week, i) => {
+    const wt = chartTrainings.filter(tr => getWeekKey(tr.date) === week)
+    const wr = chartReports.filter(rep => getWeekKey(rep.date) === week)
+    return { label: `S${i + 1}`, score: Math.max(0, calcWeeklyScore(wt as Training[], wr as DailyReport[])) }
+  })
+
+  // Saber si estoy viendo mi propio perfil
+  const { data: { user: currentUser } } = await supabase.auth.getUser()
+  const isOwnProfile = currentUser?.id === profile.id
+
   const badges = calcBadges(officialTrainings, officialReports)
   const earnedBadges = badges.filter(b => b.earned)
   const permanentBadges = badges.filter(b => b.type === 'permanent')
@@ -124,6 +150,16 @@ export default async function ProfilePage({
           <div className="mt-3 bg-blue-950/30 border border-blue-900 rounded-xl px-3 py-2">
             <p className="text-blue-400 text-xs">🧪 Mayo es período de prueba — el score empieza el 1 Jun</p>
           </div>
+        )}
+
+        {/* Botón de duelo (solo en perfil ajeno) */}
+        {!isOwnProfile && (
+          <Link href={`/vs/${profile.nickname}`}>
+            <div className="mt-3 bg-zinc-900 border border-zinc-700 hover:border-orange-500 rounded-xl px-4 py-2.5 flex items-center justify-center gap-2 transition-colors">
+              <Swords size={14} className="text-orange-400" />
+              <span className="text-white font-bold text-sm">Duelo directo vs {profile.nickname}</span>
+            </div>
+          </Link>
         )}
 
         {streak > 0 && (
@@ -195,6 +231,16 @@ export default async function ProfilePage({
           </div>
         )}
       </div>
+
+      {/* Gráfico de evolución */}
+      {chartData.length > 0 && (
+        <div className="mb-5 bg-[#151515] border border-zinc-800 rounded-2xl p-4">
+          <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-4">
+            📈 Evolución semanal
+          </h2>
+          <ScoreChart data={chartData} />
+        </div>
+      )}
 
       {/* Logros permanentes */}
       <div className="mb-5">
