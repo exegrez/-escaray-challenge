@@ -26,6 +26,9 @@ export default async function DashboardPage() {
   const currentWeek = getCurrentChallengeWeek()
   const currentChallenge = currentWeek ? (CHALLENGES.find(c => c.week === currentWeek) ?? null) : null
 
+  const queryStart = isTrialPeriod ? '2026-05-01' : CHALLENGE_START
+  const queryEnd = isTrialPeriod ? '2026-05-31' : CHALLENGE_END
+
   const { data: profiles } = await supabase
     .from('profiles')
     .select('id, nickname')
@@ -34,15 +37,15 @@ export default async function DashboardPage() {
   const { data: allTrainings } = await supabase
     .from('trainings')
     .select('*')
-    .gte('date', CHALLENGE_START)
-    .lte('date', CHALLENGE_END)
+    .gte('date', queryStart)
+    .lte('date', queryEnd)
     .order('date', { ascending: false })
 
   const { data: allReports } = await supabase
     .from('daily_reports')
     .select('*')
-    .gte('date', CHALLENGE_START)
-    .lte('date', CHALLENGE_END)
+    .gte('date', queryStart)
+    .lte('date', queryEnd)
 
   const twoDaysAgo = new Date()
   twoDaysAgo.setDate(twoDaysAgo.getDate() - 2)
@@ -84,7 +87,7 @@ export default async function DashboardPage() {
 
   // Pato de la semana: quien sumó menos puntos esta semana
   const thisWeekKey = getWeekKey(new Date().toISOString().split('T')[0])
-  const weekScores = started ? (profiles ?? []).map(profile => {
+  const weekScores = (started || isTrialPeriod) ? (profiles ?? []).map(profile => {
     const trainings = (allTrainings ?? []).filter((t: Training) => t.user_id === profile.id)
     const reports = (allReports ?? []).filter((r: DailyReport) => r.user_id === profile.id)
     const weekScore = calcWeeklyScore(
@@ -249,7 +252,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Pato de la semana */}
-      {started && patoDeLaSemana && (
+      {(started || isTrialPeriod) && patoDeLaSemana && (
         <div className="mt-6">
           <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-widest mb-3 flex items-center gap-2">
             🦆 Pato de la semana
